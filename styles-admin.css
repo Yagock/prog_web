@@ -1,0 +1,80 @@
+body{
+    margin:0;
+    font-family: Arial, sans-serif;
+    background-image: url("imagenes/Hotel1_mejorada.jpg");
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+}
+.contenedor{
+    width:60%;
+    margin:auto;
+    margin-top:60px;
+    margin-bottom:60px;
+
+    background: rgba(255,255,255,0.95);
+    padding:40px;
+
+    border-radius:12px;
+    box-shadow:0px 0px 15px rgba(0,0,0,0.4);
+}
+h1{
+    text-align:center;
+    font-size:2.5em;
+    margin-bottom:10px;
+}
+h2{
+    text-align:center;
+    color:#444;
+    margin-bottom:30px;
+}
+label{
+    display:block;
+    margin-top:15px;
+    font-weight:bold;
+    color:#333;
+}
+input[type="text"],
+textarea{
+    width:100%;
+    padding:10px;
+    margin-top:5px;
+
+    border-radius:6px;
+    border:1px solid #ccc;
+
+    font-size:16px;
+}
+.servicios{
+    margin-top:10px;
+}
+.servicios label{
+    display:block;
+    margin-bottom:5px;
+}
+.botones{
+    margin-top:25px;
+    text-align:center;
+}
+.botones button{
+    background-color:#1abc9c;
+    color:white;
+    border:none;
+
+    padding:12px 25px;
+    font-size:16px;
+
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:bold;
+
+    margin:5px;
+}
+.botones button:hover{
+    background-color:#16a085;
+}
+p{
+    text-align: center;
+    font-size: 1.5em;
+    color: #666;
+}
