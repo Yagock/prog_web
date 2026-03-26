@@ -1,69 +1,68 @@
 h1{
     text-align: center;
     font-size: 3em;
+    letter-spacing: 1px;
+    color: #2c3e50;
 }
 h4{
     text-align: center;
     font-size: 2em;
+    color: #34495e;
 }
 h3{
     text-align: center;
+    color: #2c3e50;
 }
 p{
     text-align: center;
     font-size: 1.5em;
-    color: #666;
+    color: #555;
+    line-height: 1.5;
 }
+
 .servicios{
     list-style-type: none;
     padding: 0;
-}
-.referencias{
-    background-color:#9faab5;
-    padding:10px;
-    text-align:center;
+    text-align: center;
 }
 
 .referencias{
     background-color:#9faab5;
-    padding:10px;
     text-align:center;
     color:white;
     text-decoration:none;
-    margin:0 15px;
-    padding:10px 15px;
+    margin:0 12px;
+    padding:10px 18px;
     display:inline-block;
     font-size:16px;
+    border-radius:6px;
+    transition: all 0.3s ease;
 }
 
 .referencias:hover{
     background-color:#1abc9c;
-    border-radius:5px;
+    border-radius:8px;
 }
 .referencias.active{
     background-color:#34495e;
-    border-radius:5px;
-}
-.servicios{
-    list-style-type:none;
-    padding:0;
-    text-align:center;
 }
 
 .servicios li{
     background-color:#0e3c47;
-    margin:10px auto;
-    padding:12px;
-    width:250px;
-    border-radius:6px;
+    margin:12px auto;
+    padding:14px;
+    width:260px;
+    border-radius:8px;
     font-size:18px;
     color:white;
-    transition:background-color 0.3s;
+    transition: all 0.3s ease;
 }
 
 .servicios li:hover{
     background-color:#1abc9c;
+    transform: scale(1.03);
 }
+
 body{
     margin:0;
     font-family: Arial, sans-serif;
@@ -73,33 +72,28 @@ body{
     background-position: center;
     background-attachment: fixed;
 }
+
 .contenedor{
     width:80%;
     margin:auto;
     margin-top:40px;
     margin-bottom:40px;
 
-    background: rgba(255,255,255,0.9);
-    padding:30px;
+    background: rgba(255,255,255,0.92);
+    padding:35px;
 
-    border-radius:10px;
-    box-shadow:0px 0px 10px rgba(0,0,0,0.5);
+    border-radius:12px;
+    box-shadow:0px 4px 15px rgba(0,0,0,0.3);
 }
+
 .contenedor img{
     width:100%;
     height:auto;
-    border-radius:10px;
+    border-radius:12px;
     margin-top:15px;
 }
-.contenedor img.imgmision{
-    width:30%;
-    height:auto;
-    border-radius:10px;
-    margin-top:15px;
-    display:block;
-    margin-left:auto;
-    margin-right:auto;
-}
+
+.contenedor img.imgmision,
 .contenedor img.imgvision{
     width:30%;
     height:auto;
@@ -109,24 +103,29 @@ body{
     margin-left:auto;
     margin-right:auto;
 }
+
 .mapa{
     display:block;
     margin:auto;
     margin-top:20px;
-    border-radius:10px;
+    border-radius:12px;
 }
+
 .habitacion{
     margin-top:30px;
 }
+
 .contenedor img.imgcatalogo{
     width:40%;
     float:left;
     margin-right:20px;
-    border-radius:10px;
+    border-radius:12px;
 }
+
 .clear{
     clear:both;
 }
+
 .reservar{
     background-color:#1abc9c;
     color:white;
@@ -139,10 +138,13 @@ body{
 
     display:block;
     margin:15px auto;
+    transition: background 0.3s ease;
 }
+
 .reservar:hover{
     background-color:#16a085;
 }
+
 .servicios-habitacion{
     list-style-type:none;
     margin-left:750px;
@@ -162,6 +164,7 @@ body{
     color:#1abc9c;
     font-weight:bold;
 }
+
 .botones-habitacion{
     text-align:center;
     margin-top:15px;
@@ -180,6 +183,7 @@ body{
 
     margin-left:10px;
     display:inline-block;
+    transition: background 0.3s ease;
 }
 
 .administrar:hover{
