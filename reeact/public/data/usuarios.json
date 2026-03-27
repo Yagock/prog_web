@@ -1,0 +1,16 @@
+[
+  {
+    "id": "usr-admin",
+    "nombre": "Administrador General",
+    "email": "admin@quintadalam.com",
+    "password": "Admin123*",
+    "rol": "admin"
+  },
+  {
+    "id": "usr-demo",
+    "nombre": "Huesped Demo",
+    "email": "usuario@quintadalam.com",
+    "password": "Usuario123*",
+    "rol": "usuario"
+  }
+]

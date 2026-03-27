@@ -1,0 +1,132 @@
+@import url("https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Playfair+Display:wght@600;700&display=swap");
+
+:root {
+    --terracota: #a6463d;
+    --terracota-oscuro: #85352f;
+    --crema: #f6eee2;
+    --texto: #3f4146;
+    --sombra: 0 16px 34px rgba(55, 28, 20, 0.2);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Lato", sans-serif;
+    color: var(--texto);
+    background: linear-gradient(rgba(52, 24, 13, 0.52), rgba(52, 24, 13, 0.4)),
+        url("imagenes/Hotel1_mejorada.jpg") center/cover fixed no-repeat;
+}
+
+.contenedor {
+    width: min(92%, 860px);
+    margin: 2.2rem auto;
+    padding: 2rem 1.5rem;
+    border-radius: 16px;
+    background: rgba(250, 246, 238, 0.96);
+    border: 1px solid rgba(112, 67, 45, 0.24);
+    box-shadow: var(--sombra);
+}
+
+h1,
+h2,
+h3 {
+    font-family: "Playfair Display", serif;
+    text-align: center;
+}
+
+h1 {
+    margin: 0 0 0.5rem;
+    color: #5b2e22;
+    font-size: clamp(2rem, 4vw, 2.8rem);
+}
+
+h2 {
+    margin: 0.2rem 0 1.5rem;
+    color: #3f4147;
+    font-size: clamp(1.35rem, 2.7vw, 2rem);
+}
+
+h3 {
+    margin: 1.3rem 0 0.7rem;
+    color: #6c3124;
+    font-size: 1.4rem;
+}
+
+label {
+    display: block;
+    margin-top: 0.9rem;
+    margin-bottom: 0.35rem;
+    font-weight: 700;
+}
+
+input[type="text"],
+textarea {
+    width: 100%;
+    padding: 0.72rem 0.78rem;
+    font-size: 1rem;
+    border-radius: 9px;
+    border: 1px solid #d3c5b7;
+    background-color: #fffdfa;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 120px;
+}
+
+.servicios {
+    margin-top: 0.5rem;
+    border: 1px solid #d9c8b6;
+    border-radius: 10px;
+    padding: 0.85rem;
+    background-color: #fffaf4;
+}
+
+.servicios label {
+    margin: 0.35rem 0;
+    font-weight: 400;
+}
+
+.botones {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.botones button {
+    border: none;
+    padding: 0.75rem 1.3rem;
+    border-radius: 9px;
+    color: #fff;
+    background-color: #bb5946;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.botones button:hover {
+    background-color: #a74737;
+    transform: translateY(-1px);
+}
+
+body > p {
+    margin: 0 auto 1.8rem;
+    width: fit-content;
+    padding: 0.3rem 0.5rem;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.8);
+}
+
+@media (max-width: 640px) {
+    .contenedor {
+        width: 100%;
+        margin: 0;
+        border-radius: 0;
+        padding: 1.4rem 1rem;
+    }
+}

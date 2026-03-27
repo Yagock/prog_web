@@ -1,0 +1,6 @@
+[
+  { "id": "srv-wifi", "nombre": "WiFi" },
+  { "id": "srv-king", "nombre": "Cama King Size" },
+  { "id": "srv-jardin", "nombre": "Vista al jardín" },
+  { "id": "srv-aire", "nombre": "Aire acondicionado" }
+]

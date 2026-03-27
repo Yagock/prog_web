@@ -1,0 +1,26 @@
+[
+  {
+    "id": "hab-101-tzintzuntzan",
+    "nombre": "101 - Tzintzuntzan",
+    "descripcion": "Habitación inspirada en el pueblo mágico de Tzintzuntzan. Ofrece un ambiente tranquilo con decoración tradicional y todas las comodidades necesarias para una estancia placentera.",
+    "servicios": ["WiFi", "Cama King Size", "Vista al jardín", "Aire acondicionado"],
+    "precio": 1000,
+    "imagen": "/imagenes/Hotel4_mejorada.jpg"
+  },
+  {
+    "id": "hab-102-paracho",
+    "nombre": "102 - Paracho",
+    "descripcion": "Habitación inspirada en el pueblo mágico de Paracho. Ofrece un ambiente tranquilo con decoración tradicional y todas las comodidades necesarias para una estancia placentera.",
+    "servicios": ["WiFi", "Cama King Size", "Vista al jardín", "Aire acondicionado"],
+    "precio": 1200,
+    "imagen": "/imagenes/Hotel7_mejorada.jpg"
+  },
+  {
+    "id": "hab-103-yunuen",
+    "nombre": "103 - Yunuen",
+    "descripcion": "Habitación inspirada en el pueblo mágico de Yunuen. Ofrece un ambiente tranquilo con decoración tradicional y todas las comodidades necesarias para una estancia placentera.",
+    "servicios": ["WiFi", "Cama King Size", "Vista al jardín", "Aire acondicionado"],
+    "precio": 1500,
+    "imagen": "/imagenes/Hotel8_mejorada.jpg"
+  }
+]
