@@ -4,18 +4,19 @@ import UserPanel from "./components/UserPanel";
 import AdminPanel from "./components/AdminPanel";
 import {
     DEFAULT_HABITACIONES,
-    DEFAULT_SERVICIOS,
-    DEFAULT_USUARIOS,
     STORAGE_KEYS
 } from "./constants/seeds";
-import usePersistentState from "./hooks/usePersistentState";
 import { asArray, money, resolvePublicAsset } from "./utils/helpers";
-import { fetchSeed } from "./utils/storage";
 import "./styles/hotel.css";
 
-function sanitizeRoom(item, index) {
+const API_BASE_URL =
+    process.env.REACT_APP_API_BASE_URL ||
+    `http://${window.location.hostname}:8000`;
+
+function sanitizeRoom(item) {
     if (!item || typeof item !== "object") return null;
 
+    const id = String(item.id || item.id_custom || "").trim();
     const nombre = String(item.nombre || "").trim();
     const descripcion = String(item.descripcion || "").trim();
     const precio = Number(item.precio);
@@ -24,11 +25,11 @@ function sanitizeRoom(item, index) {
         .filter(Boolean);
     const imagen = String(item.imagen || "").trim();
 
-    if (!nombre || !descripcion) return null;
+    if (!id || !nombre || !descripcion) return null;
     if (!Number.isFinite(precio) || precio <= 0) return null;
 
     return {
-        id: String(item.id || `hab-auto-${Date.now()}-${index}`),
+        id,
         nombre,
         descripcion,
         precio,
@@ -39,9 +40,36 @@ function sanitizeRoom(item, index) {
 
 function sanitizeRooms(value) {
     if (!Array.isArray(value)) return [];
-    return value
-        .map((item, index) => sanitizeRoom(item, index))
-        .filter(Boolean);
+    return value.map((item) => sanitizeRoom(item)).filter(Boolean);
+}
+
+function buildServicesFromRooms(rooms) {
+    const names = new Set();
+    for (const room of rooms) {
+        for (const serviceName of asArray(room?.servicios)) {
+            const clean = String(serviceName || "").trim();
+            if (clean) names.add(clean);
+        }
+    }
+    return Array.from(names).map((name, index) => ({
+        id: `srv-auto-${index}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        nombre: name
+    }));
+}
+
+function sanitizeUser(item) {
+    if (!item || typeof item !== "object") return null;
+    const id = String(item.id || "").trim();
+    const email = String(item.email || "").trim().toLowerCase();
+    const nombre = String(item.nombre || "").trim();
+    const rol = String(item.rol || "usuario").trim().toLowerCase();
+    if (!id || !email || !nombre) return null;
+    return { id, email, nombre, rol: rol === "admin" ? "admin" : "usuario" };
+}
+
+function sanitizeUsers(value) {
+    if (!Array.isArray(value)) return [];
+    return value.map((item) => sanitizeUser(item)).filter(Boolean);
 }
 
 export default function App() {
@@ -68,19 +96,33 @@ export default function App() {
         let alive = true;
         async function init() {
             try {
-                // 1. Siempre traer habitaciones frescas de MariaDB
-                const response = await fetch('http://192.168.1.12:8000/api/habitaciones/');
-                const dataFromDB = await response.json();
+                // Prioridad absoluta: MariaDB via API de Django
+                const [roomsResponse, usersResponse] = await Promise.all([
+                    fetch(`${API_BASE_URL}/api/habitaciones/`),
+                    fetch(`${API_BASE_URL}/api/usuarios/`)
+                ]);
+                if (!roomsResponse.ok) {
+                    throw new Error("No se pudo leer la API de habitaciones.");
+                }
+                if (!usersResponse.ok) {
+                    throw new Error("No se pudo leer la API de usuarios.");
+                }
+                const [dataFromDB, usersFromDB] = await Promise.all([
+                    roomsResponse.json(),
+                    usersResponse.json()
+                ]);
                 
                 if (!alive) return;
 
-                // CORRECCIÓN: Solo si la respuesta falla o es nula usamos DEFAULT
-                // Si la DB responde (aunque sea un array vacío), usamos la DB
-                if (Array.isArray(dataFromDB)) {
-                    setHabitaciones(sanitizeRooms(dataFromDB));
-                } else {
-                    setHabitaciones(sanitizeRooms(DEFAULT_HABITACIONES));
-                }
+                // Seed local solo cuando DB venga vacia o no valida
+                const roomsFromDB = sanitizeRooms(dataFromDB);
+                const roomsForUI =
+                    roomsFromDB.length > 0
+                        ? roomsFromDB
+                        : sanitizeRooms(DEFAULT_HABITACIONES);
+                setHabitaciones(roomsForUI);
+                setServicios(buildServicesFromRooms(roomsForUI));
+                setUsuarios(sanitizeUsers(usersFromDB));
 
                 // 2. RECUPERAR SESIÓN
                 const sessionId = localStorage.getItem(STORAGE_KEYS.sesion);
@@ -98,8 +140,10 @@ export default function App() {
                 setReady(true);
             } catch (error) {
                 console.error("Error en init:", error);
-                // En caso de error de red real, cargamos los default para que la app no muera
-                setHabitaciones(sanitizeRooms(DEFAULT_HABITACIONES));
+                // Si backend/DB no responde, usamos seed local como respaldo.
+                const fallbackRooms = sanitizeRooms(DEFAULT_HABITACIONES);
+                setHabitaciones(fallbackRooms);
+                setServicios(buildServicesFromRooms(fallbackRooms));
                 setReady(true);
             }
         }
@@ -149,19 +193,80 @@ export default function App() {
 
     const notify = (message) => setNotice(message);
 
-    const updateHabitacionEnDB = async (habitacionActualizada) => {
+    const updateHabitacionEnDB = async (
+        habitacionActualizada,
+        method = "PUT",
+        options = {}
+    ) => {
+        const { notifySuccess = true } = options;
+        const targetId = String(habitacionActualizada?.id || "").trim();
+        if (!targetId) {
+            notify("No se pudo guardar: la habitacion no tiene ID valido.");
+            return { ok: false };
+        }
+
         try {
-            await fetch(`http://192.168.1.12:8000/api/habitaciones/${habitacionActualizada.id}/`, {
-                method: 'PUT', // Verifica si tu Django usa PUT o POST para editar
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(habitacionActualizada)
+            const response = await fetch(
+                `${API_BASE_URL}/api/habitaciones/${encodeURIComponent(targetId)}/`,
+                {
+                    method,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(habitacionActualizada)
+                }
+            );
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const message = data.error || "No se pudo persistir en MariaDB.";
+                throw new Error(message);
+            }
+
+            const persistedRoom = sanitizeRoom(data) || sanitizeRoom(habitacionActualizada);
+            if (!persistedRoom) {
+                throw new Error("La API devolvio una habitacion invalida.");
+            }
+
+            setHabitaciones((prev) => {
+                const idx = prev.findIndex((item) => item.id === persistedRoom.id);
+                if (idx >= 0) {
+                    const next = [...prev];
+                    next[idx] = persistedRoom;
+                    return next;
+                }
+                return [...prev, persistedRoom];
             });
-            // Sincronizamos la RAM solo después de avisar a MariaDB
-            setHabitaciones(prev => prev.map(h => h.id === habitacionActualizada.id ? habitacionActualizada : h));
-            notify("Cambio guardado en MariaDB.");
+            if (notifySuccess) notify("Cambio guardado en MariaDB.");
+            return { ok: true, room: persistedRoom };
         } catch (error) {
             console.error("Error al guardar:", error);
-            notify("Error al conectar con la base de datos.");
+            notify(`Error al conectar con la base de datos: ${error.message}`);
+            return { ok: false, error };
+        }
+    };
+
+    const deleteHabitacionEnDB = async (id) => {
+        const targetId = String(id || "").trim();
+        if (!targetId) {
+            notify("No se pudo eliminar: ID invalido.");
+            return { ok: false };
+        }
+
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/api/habitaciones/${encodeURIComponent(targetId)}/`,
+                { method: "DELETE" }
+            );
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const message = data.error || "No se pudo eliminar en MariaDB.";
+                throw new Error(message);
+            }
+            setHabitaciones((prev) => prev.filter((item) => item.id !== targetId));
+            notify("Habitacion eliminada en MariaDB.");
+            return { ok: true };
+        } catch (error) {
+            console.error("Error al eliminar:", error);
+            notify(`Error al eliminar en base de datos: ${error.message}`);
+            return { ok: false, error };
         }
     };
 
@@ -170,9 +275,9 @@ export default function App() {
         const password = credentials.password.trim();
 
         try {
-            console.log("Intentando conectar con Django en:", 'http://192.168.1.12:8000/api/login/');
+            console.log("Intentando conectar con Django en:", `${API_BASE_URL}/api/login/`);
             
-            const response = await fetch('http://192.168.1.12:8000/api/login/', {
+            const response = await fetch(`${API_BASE_URL}/api/login/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
@@ -203,22 +308,129 @@ export default function App() {
         }
     };
 
-    const onRegister = (payload) => {
+    const onRegister = async (payload) => {
         const email = payload.email.trim().toLowerCase();
-        const exists = usuarios.some((item) => item.email.toLowerCase() === email);
-        if (exists) return { ok: false, message: "Ese correo ya esta registrado." };
-        const user = {
-            id: `usr-${Date.now()}`,
-            nombre: payload.nombre.trim(),
-            email,
-            password: payload.password.trim(),
-            rol: "usuario"
-        };
-        setUsuarios((prev) => [...prev, user]);
-        setCurrentUser(user);
-        setAuthOpen(false);
-        notify("Cuenta creada e inicio de sesion completado.");
-        return { ok: true };
+        const nombre = payload.nombre.trim();
+        const password = payload.password.trim();
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/registro/`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ nombre, email, password })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                return {
+                    ok: false,
+                    message: data.error || "No se pudo registrar en Django."
+                };
+            }
+
+            const user = sanitizeUser({
+                id: String(data.id || `usr-${Date.now()}`),
+                nombre,
+                email,
+                rol: "usuario"
+            });
+            if (!user) {
+                return { ok: false, message: "El servidor devolvio un usuario invalido." };
+            }
+            setUsuarios((prev) => [...prev, user]);
+            setCurrentUser(user);
+            setAuthOpen(false);
+            notify("Cuenta creada en MariaDB e inicio de sesion completado.");
+            return { ok: true };
+        } catch (error) {
+            return {
+                ok: false,
+                message: `No se pudo conectar con el servidor Django (${API_BASE_URL}).`
+            };
+        }
+    };
+
+    const createUsuarioEnDB = async (payload) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/usuarios/`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                return { ok: false, message: data.error || "No se pudo crear el usuario." };
+            }
+            const user = sanitizeUser(data);
+            if (!user) return { ok: false, message: "Usuario invalido devuelto por API." };
+            setUsuarios((prev) => [...prev, user]);
+            return { ok: true, user };
+        } catch (error) {
+            return { ok: false, message: "Error de red al crear usuario." };
+        }
+    };
+
+    const updateUsuarioEnDB = async (id, payload) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/usuarios/${id}/`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                return { ok: false, message: data.error || "No se pudo actualizar el usuario." };
+            }
+            const user = sanitizeUser(data);
+            if (!user) return { ok: false, message: "Usuario invalido devuelto por API." };
+            setUsuarios((prev) =>
+                prev.map((item) => (item.id === String(id) ? user : item))
+            );
+            setCurrentUser((prev) => (prev && String(prev.id) === String(id) ? user : prev));
+            return { ok: true, user };
+        } catch (error) {
+            return { ok: false, message: "Error de red al actualizar usuario." };
+        }
+    };
+
+    const deleteUsuarioEnDB = async (id) => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/usuarios/${id}/`, {
+                method: "DELETE"
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                return { ok: false, message: data.error || "No se pudo eliminar el usuario." };
+            }
+            setUsuarios((prev) => prev.filter((item) => String(item.id) !== String(id)));
+            return { ok: true };
+        } catch (error) {
+            return { ok: false, message: "Error de red al eliminar usuario." };
+        }
+    };
+
+    const checkEmailAvailability = async (email) => {
+        const clean = String(email || "").trim().toLowerCase();
+        if (!clean) return { ok: false, available: false, message: "Email requerido" };
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/api/usuarios/check-email/?email=${encodeURIComponent(clean)}`
+            );
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                return {
+                    ok: false,
+                    available: false,
+                    message: data.error || "No se pudo validar el correo"
+                };
+            }
+            return { ok: true, available: Boolean(data.available) };
+        } catch (error) {
+            return {
+                ok: false,
+                available: false,
+                message: `No se pudo conectar al validar correo (${API_BASE_URL})`
+            };
+        }
     };
 
     const logout = () => {
@@ -580,11 +792,16 @@ export default function App() {
                     <AdminPanel
                         currentUser={currentUser}
                         habitaciones={safeHabitaciones}
-                        setHabitaciones={setHabitaciones}
+                        updateHabitacionEnDB={updateHabitacionEnDB}
+                        deleteHabitacionEnDB={deleteHabitacionEnDB}
+                        reservas={reservas}
+                        setReservas={setReservas}
                         servicios={servicios}
                         setServicios={setServicios}
                         usuarios={usuarios}
-                        setUsuarios={setUsuarios}
+                        createUsuarioEnDB={createUsuarioEnDB}
+                        updateUsuarioEnDB={updateUsuarioEnDB}
+                        deleteUsuarioEnDB={deleteUsuarioEnDB}
                         notify={notify}
                         onClose={() => setShowAdminPanel(false)}
                     />
@@ -616,7 +833,9 @@ export default function App() {
                 onClose={() => setAuthOpen(false)}
                 onLogin={onLogin}
                 onRegister={onRegister}
+                onCheckEmailAvailability={checkEmailAvailability}
             />
         </div>
     );
 }
+

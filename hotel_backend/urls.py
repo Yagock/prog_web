@@ -17,11 +17,22 @@ Including another URLconf
 from core import views
 from django.contrib import admin
 from django.urls import path
-from core.views import registro_usuario, lista_habitaciones
+from core.views import (
+    registro_usuario,
+    lista_habitaciones,
+    detalle_habitacion,
+    check_email_disponible,
+    lista_usuarios,
+    detalle_usuario
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/registro/', registro_usuario),
+    path('api/usuarios/check-email/', check_email_disponible),
+    path('api/usuarios/', lista_usuarios),
+    path('api/usuarios/<str:id>/', detalle_usuario),
     path('api/habitaciones/', lista_habitaciones),
+    path('api/habitaciones/<str:id>/', detalle_habitacion),
     path('api/login/', views.api_login),
 ]

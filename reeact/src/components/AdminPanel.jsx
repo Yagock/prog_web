@@ -38,11 +38,16 @@ function userErrors(values) {
 export default function AdminPanel({
     currentUser,
     habitaciones,
-    setHabitaciones,
+    updateHabitacionEnDB,
+    deleteHabitacionEnDB,
+    reservas,
+    setReservas,
     servicios,
     setServicios,
     usuarios,
-    setUsuarios,
+    createUsuarioEnDB,
+    updateUsuarioEnDB,
+    deleteUsuarioEnDB,
     notify,
     onClose
 }) {
@@ -145,7 +150,7 @@ export default function AdminPanel({
         notify("Servicio agregado al catalogo.");
     };
 
-    const submitRoom = (event) => {
+    const submitRoom = async (event) => {
         event.preventDefault();
         if (Object.keys(roomFormErrors).length > 0) return;
 
@@ -166,23 +171,21 @@ export default function AdminPanel({
             servicios: finalServices
         };
 
-        if (editingRoomId) {
-            setHabitaciones((prev) =>
-                prev.map((item) => (item.id === editingRoomId ? payload : item))
-            );
-            notify("Habitacion actualizada.");
-        } else {
-            setHabitaciones((prev) => [...prev, payload]);
-            notify("Habitacion agregada.");
-        }
+        const result = await updateHabitacionEnDB(
+            payload,
+            editingRoomId ? "PUT" : "POST",
+            { notifySuccess: false }
+        );
+        if (!result?.ok) return;
+        notify(editingRoomId ? "Habitacion actualizada." : "Habitacion agregada.");
         setEditingRoomId(null);
     };
 
-    const deleteRoom = (id) => {
+    const deleteRoom = async (id) => {
         if (!window.confirm("Eliminar esta habitacion?")) return;
-        setHabitaciones((prev) => prev.filter((item) => item.id !== id));
+        const result = await deleteHabitacionEnDB(id);
+        if (!result?.ok) return;
         if (editingRoomId === id) setEditingRoomId(null);
-        notify("Habitacion eliminada.");
     };
 
     const submitService = (event) => {
@@ -202,19 +205,28 @@ export default function AdminPanel({
         notify("Servicio agregado.");
     };
 
-    const deleteService = (service) => {
+    const deleteService = async (service) => {
         if (!window.confirm(`Eliminar el servicio "${service.nombre}"?`)) return;
         setServicios((prev) => prev.filter((item) => item.id !== service.id));
-        setHabitaciones((prev) =>
-            prev.map((room) => ({
-                ...room,
-                servicios: room.servicios.filter((name) => name !== service.nombre)
-            }))
+
+        const roomsToUpdate = habitaciones.filter((room) =>
+            asArray(room.servicios).includes(service.nombre)
         );
+
+        for (const room of roomsToUpdate) {
+            const nextRoom = {
+                ...room,
+                servicios: asArray(room.servicios).filter(
+                    (name) => name !== service.nombre
+                )
+            };
+            await updateHabitacionEnDB(nextRoom, "PUT", { notifySuccess: false });
+        }
+
         notify("Servicio eliminado.");
     };
 
-    const submitUser = (event) => {
+    const submitUser = async (event) => {
         event.preventDefault();
         if (Object.keys(userFormErrors).length > 0) return;
         const email = userForm.email.trim().toLowerCase();
@@ -223,21 +235,21 @@ export default function AdminPanel({
             notify("Ese correo ya esta registrado.");
             return;
         }
-        setUsuarios((prev) => [
-            ...prev,
-            {
-                id: `usr-${slugify(userForm.nombre)}-${Date.now()}`,
-                nombre: userForm.nombre.trim(),
-                email,
-                password: userForm.password.trim(),
-                rol: userForm.rol
-            }
-        ]);
+        const result = await createUsuarioEnDB({
+            nombre: userForm.nombre.trim(),
+            email,
+            password: userForm.password.trim(),
+            rol: userForm.rol
+        });
+        if (!result?.ok) {
+            notify(result?.message || "No se pudo crear el usuario.");
+            return;
+        }
         setUserForm({ nombre: "", email: "", password: "", rol: "usuario" });
         notify("Usuario agregado.");
     };
 
-    const updateUserRole = (userId, role) => {
+    const updateUserRole = async (userId, role) => {
         const user = usuarios.find((item) => item.id === userId);
         if (!user) return;
         if (user.rol === "admin" && role !== "admin") {
@@ -247,13 +259,15 @@ export default function AdminPanel({
                 return;
             }
         }
-        setUsuarios((prev) =>
-            prev.map((item) => (item.id === userId ? { ...item, rol: role } : item))
-        );
+        const result = await updateUsuarioEnDB(userId, { rol: role });
+        if (!result?.ok) {
+            notify(result?.message || "No se pudo actualizar el rol.");
+            return;
+        }
         notify("Rol actualizado.");
     };
 
-    const deleteUser = (userId) => {
+    const deleteUser = async (userId) => {
         const user = usuarios.find((item) => item.id === userId);
         if (!user) return;
         if (user.id === currentUser.id) {
@@ -268,8 +282,18 @@ export default function AdminPanel({
             }
         }
         if (!window.confirm(`Eliminar al usuario ${user.nombre}?`)) return;
-        setUsuarios((prev) => prev.filter((item) => item.id !== userId));
+        const result = await deleteUsuarioEnDB(userId);
+        if (!result?.ok) {
+            notify(result?.message || "No se pudo eliminar el usuario.");
+            return;
+        }
         notify("Usuario eliminado.");
+    };
+
+    const cancelarReservaAdmin = (reservaId) => {
+        if (!window.confirm("Cancelar esta reservacion?")) return;
+        setReservas((prev) => prev.filter((item) => item.id !== reservaId));
+        notify("Reservacion cancelada por administracion.");
     };
 
     return (
@@ -302,6 +326,13 @@ export default function AdminPanel({
                     onClick={() => setTab("usuarios")}
                 >
                     Usuarios
+                </button>
+                <button
+                    className={`tab-btn ${tab === "reservaciones" ? "active" : ""}`}
+                    type="button"
+                    onClick={() => setTab("reservaciones")}
+                >
+                    Reservaciones
                 </button>
             </div>
 
@@ -657,6 +688,60 @@ export default function AdminPanel({
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {tab === "reservaciones" && (
+                <div className="card-panel">
+                    <h3>Reservaciones globales</h3>
+                    <div className="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th>Correo</th>
+                                    <th>Habitacion</th>
+                                    <th>Fechas</th>
+                                    <th>Noches</th>
+                                    <th>Total</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {reservas.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="7" className="empty-state">
+                                            No hay reservaciones registradas.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    reservas.map((item) => (
+                                        <tr key={item.id}>
+                                            <td>{item.nombre}</td>
+                                            <td>{item.correo}</td>
+                                            <td>{item.habitacionNombre}</td>
+                                            <td>
+                                                {item.entrada} - {item.salida}
+                                            </td>
+                                            <td>{item.noches}</td>
+                                            <td>{money(item.total)}</td>
+                                            <td>
+                                                <button
+                                                    className="btn btn-danger btn-small"
+                                                    type="button"
+                                                    onClick={() =>
+                                                        cancelarReservaAdmin(item.id)
+                                                    }
+                                                >
+                                                    Cancelar
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             )}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const EMAIL_RE = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 
@@ -37,7 +37,8 @@ export default function AuthModal({
     onModeChange,
     onClose,
     onLogin,
-    onRegister
+    onRegister,
+    onCheckEmailAvailability
 }) {
     const [loginValues, setLoginValues] = useState({ email: "", password: "" });
     const [registerValues, setRegisterValues] = useState({
@@ -47,6 +48,11 @@ export default function AuthModal({
         passwordConfirm: ""
     });
     const [submitError, setSubmitError] = useState("");
+    const [emailAvailability, setEmailAvailability] = useState({
+        checking: false,
+        available: null,
+        message: ""
+    });
 
     const loginErrors = useMemo(() => validateLogin(loginValues), [loginValues]);
     const registerErrors = useMemo(
@@ -54,12 +60,63 @@ export default function AuthModal({
         [registerValues]
     );
 
+    useEffect(() => {
+        if (!open || mode !== "register") return;
+
+        const email = registerValues.email.trim().toLowerCase();
+        if (!email) {
+            setEmailAvailability({
+                checking: false,
+                available: null,
+                message: ""
+            });
+            return;
+        }
+        if (!EMAIL_RE.test(email)) {
+            setEmailAvailability({
+                checking: false,
+                available: false,
+                message: "Correo invalido."
+            });
+            return;
+        }
+
+        let cancelled = false;
+        const timer = setTimeout(async () => {
+            setEmailAvailability((prev) => ({ ...prev, checking: true, message: "" }));
+            const result = await onCheckEmailAvailability(email);
+            if (cancelled) return;
+
+            if (!result.ok) {
+                setEmailAvailability({
+                    checking: false,
+                    available: null,
+                    message: result.message || "No se pudo validar el correo."
+                });
+                return;
+            }
+
+            setEmailAvailability({
+                checking: false,
+                available: result.available,
+                message: result.available
+                    ? "Correo disponible."
+                    : "Ese correo ya esta en uso."
+            });
+        }, 350);
+
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [open, mode, registerValues.email, onCheckEmailAvailability]);
+
     if (!open) return null;
 
-    const submitLogin = (event) => {
+    const submitLogin = async (event) => {
         event.preventDefault();
         if (Object.keys(loginErrors).length > 0) return;
-        const result = onLogin({
+        const result = await onLogin({
             email: loginValues.email.trim(),
             password: loginValues.password.trim()
         });
@@ -74,39 +131,27 @@ export default function AuthModal({
     const submitRegister = async (event) => {
         event.preventDefault();
         if (Object.keys(registerErrors).length > 0) return;
-
-        try {
-            const response = await fetch('http://127.0.0.1:8000/api/registro/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    nombre: registerValues.nombre.trim(),
-                    email: registerValues.email.trim(),
-                    password: registerValues.password.trim()
-                }),
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                alert("¡Cuenta creada correctamente en MariaDB!");
-                setSubmitError("");
-                setRegisterValues({
-                    nombre: "",
-                    email: "",
-                    password: "",
-                    passwordConfirm: ""
-                });
-                onClose(); // Cerramos el modal al tener éxito
-            } else {
-                // Si el correo ya existe, Django enviará el error que escribimos en views.py
-                setSubmitError(data.error || "Error al registrar.");
-            }
-        } catch (error) {
-            setSubmitError("No se pudo conectar con el servidor Django.");
+        if (emailAvailability.available === false) {
+            setSubmitError("Ese correo ya esta en uso.");
+            return;
         }
+
+        const result = await onRegister({
+            nombre: registerValues.nombre.trim(),
+            email: registerValues.email.trim(),
+            password: registerValues.password.trim()
+        });
+        if (!result.ok) {
+            setSubmitError(result.message || "No se pudo registrar.");
+            return;
+        }
+        setSubmitError("");
+        setRegisterValues({
+            nombre: "",
+            email: "",
+            password: "",
+            passwordConfirm: ""
+        });
     };
 
     return (
@@ -208,6 +253,21 @@ export default function AuthModal({
                         />
                         {registerErrors.email && (
                             <p className="error-msg">{registerErrors.email}</p>
+                        )}
+                        {!registerErrors.email && registerValues.email.trim() && (
+                            <p
+                                className="error-msg"
+                                style={{
+                                    color:
+                                        emailAvailability.available === true
+                                            ? "#2f6f4e"
+                                            : "#bd3a2e"
+                                }}
+                            >
+                                {emailAvailability.checking
+                                    ? "Validando correo..."
+                                    : emailAvailability.message}
+                            </p>
                         )}
 
                         <label htmlFor="register-password">Contrasena</label>
