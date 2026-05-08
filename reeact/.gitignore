@@ -21,3 +21,13 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Python / Django
+env_hotel_final/
+__pycache__/
+*.pyc
+db.sqlite3
+hotel_backend/local_settings.py
+
+# Requisito de Seguridad (Paso 2)
+.env

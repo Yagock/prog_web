@@ -71,25 +71,42 @@ export default function AuthModal({
         setLoginValues({ email: "", password: "" });
     };
 
-    const submitRegister = (event) => {
+    const submitRegister = async (event) => {
         event.preventDefault();
         if (Object.keys(registerErrors).length > 0) return;
-        const result = onRegister({
-            nombre: registerValues.nombre.trim(),
-            email: registerValues.email.trim(),
-            password: registerValues.password.trim()
-        });
-        if (!result.ok) {
-            setSubmitError(result.message);
-            return;
+
+        try {
+            const response = await fetch('http://127.0.0.1:8000/api/registro/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    nombre: registerValues.nombre.trim(),
+                    email: registerValues.email.trim(),
+                    password: registerValues.password.trim()
+                }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert("¡Cuenta creada correctamente en MariaDB!");
+                setSubmitError("");
+                setRegisterValues({
+                    nombre: "",
+                    email: "",
+                    password: "",
+                    passwordConfirm: ""
+                });
+                onClose(); // Cerramos el modal al tener éxito
+            } else {
+                // Si el correo ya existe, Django enviará el error que escribimos en views.py
+                setSubmitError(data.error || "Error al registrar.");
+            }
+        } catch (error) {
+            setSubmitError("No se pudo conectar con el servidor Django.");
         }
-        setSubmitError("");
-        setRegisterValues({
-            nombre: "",
-            email: "",
-            password: "",
-            passwordConfirm: ""
-        });
     };
 
     return (

@@ -57,99 +57,65 @@ export default function App() {
     const [catalogSort, setCatalogSort] = useState("nombre");
     const [preselectedRoom, setPreselectedRoom] = useState("");
     const [currentUser, setCurrentUser] = useState(null);
+    const [habitaciones, setHabitaciones] = useState([]);
+    const [servicios, setServicios] = useState([]);
+    const [usuarios, setUsuarios] = useState([]);
+    const [reservas, setReservas] = useState([]);
 
-    const [habitaciones, setHabitaciones] = usePersistentState(
-        STORAGE_KEYS.habitaciones,
-        []
-    );
-    const [servicios, setServicios] = usePersistentState(STORAGE_KEYS.servicios, []);
-    const [usuarios, setUsuarios] = usePersistentState(STORAGE_KEYS.usuarios, []);
-    const [reservas, setReservas] = usePersistentState(STORAGE_KEYS.reservas, []);
     const safeHabitaciones = useMemo(() => sanitizeRooms(habitaciones), [habitaciones]);
 
     useEffect(() => {
         let alive = true;
-
-        const getStoredArray = (key) => {
-            try {
-                const raw = localStorage.getItem(key);
-                if (!raw) return null;
-                const parsed = JSON.parse(raw);
-                return Array.isArray(parsed) ? parsed : null;
-            } catch (error) {
-                return null;
-            }
-        };
-
         async function init() {
-            const [seedHabitaciones, seedServicios, seedUsuarios, seedReservas] =
-                await Promise.all([
-                    fetchSeed(
-                        resolvePublicAsset("/data/habitaciones.json"),
-                        DEFAULT_HABITACIONES
-                    ),
-                    fetchSeed(
-                        resolvePublicAsset("/data/servicios.json"),
-                        DEFAULT_SERVICIOS
-                    ),
-                    fetchSeed(resolvePublicAsset("/data/usuarios.json"), DEFAULT_USUARIOS),
-                    fetchSeed(resolvePublicAsset("/data/reservas.json"), [])
-                ]);
+            try {
+                // 1. Siempre traer habitaciones frescas de MariaDB
+                const response = await fetch('http://192.168.1.12:8000/api/habitaciones/');
+                const dataFromDB = await response.json();
+                
+                if (!alive) return;
 
-            if (!alive) return;
+                // CORRECCIÓN: Solo si la respuesta falla o es nula usamos DEFAULT
+                // Si la DB responde (aunque sea un array vacío), usamos la DB
+                if (Array.isArray(dataFromDB)) {
+                    setHabitaciones(sanitizeRooms(dataFromDB));
+                } else {
+                    setHabitaciones(sanitizeRooms(DEFAULT_HABITACIONES));
+                }
 
-            const storedHabitaciones = getStoredArray(STORAGE_KEYS.habitaciones);
-            const storedServicios = getStoredArray(STORAGE_KEYS.servicios);
-            const storedUsuarios = getStoredArray(STORAGE_KEYS.usuarios);
-            const storedReservas = getStoredArray(STORAGE_KEYS.reservas);
-            const safeSeedRooms = sanitizeRooms(seedHabitaciones);
-            const baseRooms =
-                safeSeedRooms.length > 0
-                    ? safeSeedRooms
-                    : sanitizeRooms(DEFAULT_HABITACIONES);
-            const safeStoredRooms = sanitizeRooms(storedHabitaciones);
-
-            // Recovery guard: if a previous bad write left arrays empty, repopulate seeds.
-            if (safeStoredRooms.length === 0) {
-                setHabitaciones(baseRooms);
-            } else if (
-                JSON.stringify(safeStoredRooms) !== JSON.stringify(storedHabitaciones)
-            ) {
-                setHabitaciones(safeStoredRooms);
+                // 2. RECUPERAR SESIÓN
+                const sessionId = localStorage.getItem(STORAGE_KEYS.sesion);
+                if (sessionId) {
+                    if (sessionId === '1' || sessionId.includes('admin') || localStorage.getItem('is_admin') === 'true') {
+                        setCurrentUser({
+                            id: sessionId,
+                            nombre: "Administrador",
+                            email: "Administrador@gmail.com",
+                            rol: "admin",
+                            ok: true
+                        });
+                    }
+                }
+                setReady(true);
+            } catch (error) {
+                console.error("Error en init:", error);
+                // En caso de error de red real, cargamos los default para que la app no muera
+                setHabitaciones(sanitizeRooms(DEFAULT_HABITACIONES));
+                setReady(true);
             }
-            if (!storedServicios || storedServicios.length === 0) {
-                setServicios(seedServicios);
-            }
-            if (!storedUsuarios || storedUsuarios.length === 0) {
-                setUsuarios(seedUsuarios);
-            }
-            if (!storedReservas) {
-                setReservas(seedReservas);
-            }
-
-            const sessionId = localStorage.getItem(STORAGE_KEYS.sesion);
-            const allUsers =
-                storedUsuarios && storedUsuarios.length > 0
-                    ? storedUsuarios
-                    : seedUsuarios;
-            const sessionUser = allUsers.find((item) => item.id === sessionId) || null;
-            setCurrentUser(sessionUser);
-            setReady(true);
         }
         init();
-        return () => {
-            alive = false;
-        };
-    }, [setHabitaciones, setServicios, setUsuarios, setReservas]);
+        return () => { alive = false; };
+    }, []);
 
+    // SEGUNDO EFECTO: Solo guarda cuando el usuario existe REALMENTE
     useEffect(() => {
-        if (!currentUser) {
-            localStorage.removeItem(STORAGE_KEYS.sesion);
-            return;
+        if (ready && currentUser) {
+            localStorage.setItem(STORAGE_KEYS.sesion, currentUser.id);
+            if(currentUser.rol === 'admin') localStorage.setItem('is_admin', 'true');
         }
-        localStorage.setItem(STORAGE_KEYS.sesion, currentUser.id);
-    }, [currentUser]);
+    }, [currentUser, ready]);
 
+    /*
     useEffect(() => {
         if (!ready || !currentUser) return;
         const updated = usuarios.find((item) => item.id === currentUser.id);
@@ -165,6 +131,7 @@ export default function App() {
             setCurrentUser(updated);
         }
     }, [usuarios, currentUser, ready]);
+    */
 
     useEffect(() => {
         if (!notice) return;
@@ -182,17 +149,58 @@ export default function App() {
 
     const notify = (message) => setNotice(message);
 
-    const onLogin = (credentials) => {
-        const email = credentials.email.trim().toLowerCase();
+    const updateHabitacionEnDB = async (habitacionActualizada) => {
+        try {
+            await fetch(`http://192.168.1.12:8000/api/habitaciones/${habitacionActualizada.id}/`, {
+                method: 'PUT', // Verifica si tu Django usa PUT o POST para editar
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(habitacionActualizada)
+            });
+            // Sincronizamos la RAM solo después de avisar a MariaDB
+            setHabitaciones(prev => prev.map(h => h.id === habitacionActualizada.id ? habitacionActualizada : h));
+            notify("Cambio guardado en MariaDB.");
+        } catch (error) {
+            console.error("Error al guardar:", error);
+            notify("Error al conectar con la base de datos.");
+        }
+    };
+
+    const onLogin = async (credentials) => {
+        const email = credentials.email.trim();
         const password = credentials.password.trim();
-        const user = usuarios.find(
-            (item) => item.email.toLowerCase() === email && item.password === password
-        );
-        if (!user) return { ok: false, message: "Credenciales incorrectas." };
-        setCurrentUser(user);
-        setAuthOpen(false);
-        notify(`Bienvenido, ${user.nombre}.`);
-        return { ok: true };
+
+        try {
+            console.log("Intentando conectar con Django en:", 'http://192.168.1.12:8000/api/login/');
+            
+            const response = await fetch('http://192.168.1.12:8000/api/login/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            // Si Django responde (aunque sea error 401)
+            const data = await response.json();
+            console.log("Respuesta de Django:", data);
+
+            if (response.ok && data.ok) {
+                if (data.email === 'Administrador@gmail.com') {
+                    data.rol = 'admin';
+                }
+
+                setCurrentUser(data);
+                setAuthOpen(false);
+                notify(`Bienvenido, ${data.nombre}.`);
+                return { ok: true }; 
+            } else {
+                const msg = data.message || "Credenciales incorrectas en MariaDB";
+                alert(msg); 
+                return { ok: false, message: msg };
+            }
+        } catch (error) {
+            console.error("ERROR DE CONEXIÓN:", error);
+            alert("No hay conexión con el servidor. ¿Prendiste Django con 0.0.0.0?");
+            return { ok: false, message: "Error de red" };
+        }
     };
 
     const onRegister = (payload) => {
@@ -214,6 +222,7 @@ export default function App() {
     };
 
     const logout = () => {
+        localStorage.clear();
         setCurrentUser(null);
         setShowAdminPanel(false);
         setShowUserPanel(false);
