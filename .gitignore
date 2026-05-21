@@ -1,0 +1,6 @@
+cert.crt
+cert.key
+db.sqlite3
+__pycache__/
+*.pyc
+env_hotel_final/

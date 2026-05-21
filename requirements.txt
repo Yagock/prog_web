@@ -1,0 +1,17 @@
+asgiref==3.11.1
+cffi==2.0.0
+cryptography==48.0.0
+Django==4.2.30
+django-cors-headers==4.9.0
+django-extensions==4.1
+django-sslserver==0.22
+django-werkzeug-debugger-runserver==0.3.1
+MarkupSafe==3.0.3
+mysqlclient==2.2.8
+pycparser==3.0
+pyOpenSSL==26.2.0
+six==1.17.0
+sqlparse==0.5.5
+typing_extensions==4.15.0
+tzdata==2026.2
+Werkzeug==3.1.8
